@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{{.Title}}</title>
+</style>
+</head>
+<body>
+<h1>{{.Title}}</h1>
+<form action="/write" method="post">
+    <div>
+        <label for="name">名前<br></label>
+        <input type="text" name="name"/>
+    </div>
+    <div>
+        <label for="message">内容<br></label>
+        <textarea required="required" name="message" cols="28" rows="3"></textarea>
+    </div>
+    <p></p>
+    <input type="submit" value="書き込み"/>
+</form>
+{{ range .Messages }}
+<p>
+    {{.Name}} : {{.CreatedAt.Format "2006/1/2 15:04:05"}}<br>
+    {{.Message}}
+</p>
+<p></p>
+{{ end }}
+</body>
+</html>

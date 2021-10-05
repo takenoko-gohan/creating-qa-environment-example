@@ -1,0 +1,84 @@
+version: '3'
+
+services:
+  web:
+    image: golang:1.15
+    ports:
+      - 8080:80
+    environment:
+      AWS_ACCESS_KEY_ID: mock
+      AWS_SECRET_ACCESS_KEY: mock
+      APP_ENV: local
+      QUEUE_URL: http://localstack:4566/000000000000/message-queue.fifo
+      DB_USER_NAME: app
+      DB_USER_PASS: password
+      DB_HOST: db
+      DB_DATABASE: bbs
+      TZ: "Asia/Tokyo"
+    command: go run main.go
+    volumes:
+      - ./web/:/workspace:ro
+    working_dir: /workspace
+    depends_on:
+      - db
+      - localstack
+
+  worker:
+    image: golang:1.15
+    environment:
+      AWS_ACCESS_KEY_ID: mock
+      AWS_SECRET_ACCESS_KEY: mock
+      APP_ENV: local
+      QUEUE_URL: http://localstack:4566/000000000000/message-queue.fifo
+      DB_USER_NAME: app
+      DB_USER_PASS: password
+      DB_HOST: db
+      DB_DATABASE: bbs
+      TZ: "Asia/Tokyo"
+    command: go run main.go
+    volumes:
+      - ./worker/:/workspace:ro
+    working_dir: /workspace
+    depends_on:
+      - db
+      - localstack
+
+  db:
+    image: mysql:5.7
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: bbs
+      MYSQL_USER: app
+      MYSQL_PASSWORD: password
+      TZ: "Asia/Tokyo"
+
+  localstack:
+    image: localstack/localstack:latest
+    environment: 
+      - SERVICES=sqs
+      - DEFAULT_REGION=ap-northeast-1
+    ports:
+      - 4566:4566
+  
+  migrate:
+    image: golang:1.15
+    environment:
+      DB_HOST: db
+      DB_DATABASE: bbs
+      DB_ROOT_PASS: root
+      TZ: "Asia/Tokyo"
+    command: go run main.go
+    volumes:
+      - ./migrate/:/workspace:ro
+    working_dir: /workspace
+    depends_on:
+      - db
+
+  terraform:
+    build:
+      context: ./terraform/local
+      dockerfile: Dockerfile
+    depends_on:
+      - localstack
