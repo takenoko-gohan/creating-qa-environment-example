@@ -199,6 +199,7 @@ resource "aws_security_group" "alb" {
       to_port         = 443
     }
   ]
+
   egress {
     from_port = 0
     to_port   = 0
@@ -231,6 +232,7 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.qa.arn
   port              = 80
   protocol          = "HTTP"
+
   default_action {
     type = "redirect"
     redirect {
@@ -246,6 +248,7 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = aws_acm_certificate.cert.arn
   port              = 443
   protocol          = "HTTPS"
+
   default_action {
     type = "fixed-response"
     fixed_response {
