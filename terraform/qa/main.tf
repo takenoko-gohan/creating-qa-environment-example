@@ -189,8 +189,12 @@ resource "aws_lb_listener_rule" "app" {
 }
 
 // ECR
-resource "aws_ecr_repository" "app" {
-  name = "${local.prefix}-app"
+resource "aws_ecr_repository" "web" {
+  name = "${local.prefix}-web"
+}
+
+resource "aws_ecr_repository" "worker" {
+  name = "${local.prefix}-worker"
 }
 
 resource "aws_ecr_repository" "migrate" {
@@ -211,6 +215,7 @@ resource "aws_ecs_task_definition" "app" {
   memory             = "512"
   network_mode       = "awsvpc"
   execution_role_arn = aws_iam_role.ecs_task_execution.arn
+  task_role_arn      = aws_iam_role.app.arn
 
   // ダミーのタスク定義
   container_definitions = jsonencode([{
