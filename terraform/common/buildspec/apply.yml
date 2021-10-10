@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.16
+    commands:
+      - git clone https://github.com/tfutils/tfenv.git ~/.tfenv
+      - ln -s ~/.tfenv/bin/* /usr/local/bin
+      - tfenv install 1.0.7
+  build:
+    commands:
+      - cd terraform/qa
+      - terraform init -backend-config="bucket=$TFSTATE_BUCKET"
+      - terraform workspace new $ENV
+      - terraform apply -var qa_common_tfstate_bucket=$TFSTATE_BUCKET -auto-approve

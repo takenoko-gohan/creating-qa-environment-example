@@ -158,7 +158,7 @@ resource "aws_route" "private" {
 
 resource "aws_route_table_association" "private" {
   count          = length(var.subnet_az)
-  route_table_id = aws_route_table.public.id
+  route_table_id = aws_route_table.private[count.index].id
   subnet_id      = aws_subnet.private[count.index].id
 }
 
@@ -210,6 +210,52 @@ resource "aws_security_group" "alb" {
   }
 }
 
+resource "aws_security_group" "codebuild" {
+  name        = "qa-codebuild"
+  description = "Security group for CodeBuild"
+  vpc_id      = aws_vpc.qa.id
+  ingress     = []
+
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    cidr_blocks = [
+      "0.0.0.0/0",
+    ]
+  }
+}
+
+// IAM
+data "aws_iam_policy_document" "codebuild_assume_role" {
+  statement {
+    actions = [
+      "sts:AssumeRole",
+    ]
+
+    principals {
+      type = "Service"
+      identifiers = [
+        "codebuild.amazonaws.com",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "codebuild" {
+  name               = "QaCodeBuild"
+  assume_role_policy = data.aws_iam_policy_document.codebuild_assume_role.json
+}
+
+//
+// 今回は CodeBuild に強い権限を持たせています。
+// 必要に応じて権限を見直してください。
+//
+resource "aws_iam_role_policy_attachment" "codebuild_01" {
+  role       = aws_iam_role.codebuild.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
 // ALB
 resource "aws_lb" "qa" {
   name                       = "qa-alb"
@@ -223,6 +269,7 @@ resource "aws_lb" "qa" {
   subnets = [
     for subnet in aws_subnet.public : subnet.id
   ]
+  enable_deletion_protection = false
   tags = {
     Name = "qa-alb"
   }
@@ -257,4 +304,118 @@ resource "aws_lb_listener" "https" {
       status_code  = 403
     }
   }
+}
+
+resource "aws_codebuild_project" "apply" {
+  name         = "qa-apply"
+  description  = "terraform apply"
+  service_role = aws_iam_role.codebuild.arn
+
+  artifacts {
+    encryption_disabled    = false
+    override_artifact_name = false
+    type                   = "NO_ARTIFACTS"
+  }
+
+  cache {
+    modes = []
+    type  = "NO_CACHE"
+  }
+
+  environment {
+    compute_type                = "BUILD_GENERAL1_SMALL"
+    image                       = "aws/codebuild/standard:5.0"
+    image_pull_credentials_type = "CODEBUILD"
+    privileged_mode             = false
+    type                        = "LINUX_CONTAINER"
+  }
+
+  logs_config {
+    cloudwatch_logs {
+      status = "ENABLED"
+    }
+
+    s3_logs {
+      encryption_disabled = false
+      status              = "DISABLED"
+    }
+  }
+
+  source {
+    buildspec           = file("buildspec/apply.yml")
+    git_clone_depth     = 1
+    insecure_ssl        = false
+    report_build_status = false
+    type                = "NO_SOURCE"
+  }
+
+  vpc_config {
+    security_group_ids = [
+      aws_security_group.codebuild.id,
+    ]
+    subnets = aws_subnet.public.*.id
+    vpc_id  = aws_vpc.qa.id
+  }
+}
+
+resource "aws_codebuild_project" "destroy" {
+  name         = "qa-destroy"
+  description  = "terraform destroy"
+  service_role = aws_iam_role.codebuild.arn
+
+  artifacts {
+    encryption_disabled    = false
+    override_artifact_name = false
+    type                   = "NO_ARTIFACTS"
+  }
+
+  cache {
+    modes = []
+    type  = "NO_CACHE"
+  }
+
+  environment {
+    compute_type                = "BUILD_GENERAL1_SMALL"
+    image                       = "aws/codebuild/standard:5.0"
+    image_pull_credentials_type = "CODEBUILD"
+    privileged_mode             = false
+    type                        = "LINUX_CONTAINER"
+  }
+
+  logs_config {
+    cloudwatch_logs {
+      status = "ENABLED"
+    }
+
+    s3_logs {
+      encryption_disabled = false
+      status              = "DISABLED"
+    }
+  }
+
+  source {
+    buildspec           = file("buildspec/destroy.yml")
+    git_clone_depth     = 1
+    insecure_ssl        = false
+    report_build_status = false
+    type                = "NO_SOURCE"
+  }
+
+  vpc_config {
+    security_group_ids = [
+      aws_security_group.codebuild.id,
+    ]
+    subnets = aws_subnet.public.*.id
+    vpc_id  = aws_vpc.qa.id
+  }
+}
+
+resource "aws_cloudwatch_log_group" "codebuild_apply" {
+  name              = "/aws/codebuild/${aws_codebuild_project.apply.name}"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "codebuild_destroy" {
+  name              = "/aws/codebuild/${aws_codebuild_project.destroy.name}"
+  retention_in_days = 7
 }
