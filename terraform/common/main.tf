@@ -353,7 +353,7 @@ resource "aws_codebuild_project" "apply" {
     security_group_ids = [
       aws_security_group.codebuild.id,
     ]
-    subnets = aws_subnet.public.*.id
+    subnets = aws_subnet.private.*.id
     vpc_id  = aws_vpc.qa.id
   }
 }
@@ -405,7 +405,7 @@ resource "aws_codebuild_project" "destroy" {
     security_group_ids = [
       aws_security_group.codebuild.id,
     ]
-    subnets = aws_subnet.public.*.id
+    subnets = aws_subnet.private.*.id
     vpc_id  = aws_vpc.qa.id
   }
 }
