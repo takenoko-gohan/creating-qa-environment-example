@@ -67,7 +67,8 @@ services:
     environment:
       DB_HOST: db
       DB_DATABASE: bbs
-      DB_ROOT_PASS: root
+      DB_USER_NAME: app
+      DB_USER_PASS: password
       TZ: "Asia/Tokyo"
     command: go run main.go
     volumes:

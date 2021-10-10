@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
-	p := os.Getenv("DB_ROOT_PASS")
+	u := os.Getenv("DB_USER_NAME")
+	p := os.Getenv("DB_USER_PASS")
 	h := os.Getenv("DB_HOST")
 	db := os.Getenv("DB_DATABASE")
-	url := "mysql://root:" + p + "@tcp(" + h + ":3306)/" + db
+	url := "mysql://" + u + ":" + p + "@tcp(" + h + ":3306)/" + db
 
 	time.Sleep(10 * time.Second)
 
