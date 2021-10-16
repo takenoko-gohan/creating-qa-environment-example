@@ -1,0 +1,83 @@
+name: Deleting qa environment
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+env:
+  ENV: pr${{ github.event.pull_request.number }}
+  TFSTATE_BUCKET: ${{ secrets.TFSTATE_BUCKET }}
+
+jobs:
+  DeleteEnv:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Import source credentials
+      run: aws codebuild import-source-credentials --token ${{ secrets.PERSONAL_ACCESS_TOKEN }} --server-type GITHUB --auth-type PERSONAL_ACCESS_TOKEN
+
+    - name: Run CodeBuild
+      uses: aws-actions/aws-codebuild-run-build@v1
+      with:
+        project-name: qa-destroy
+        env-vars-for-codebuild: |
+          ENV,
+          TFSTATE_BUCKET
+
+  NotifySucceed:
+    if: ${{ success() }}
+    runs-on: ubuntu-20.04
+    timeout-minutes: 3
+    needs: DeleteEnv
+
+    steps:
+    - name: Create comments
+      run: |
+        echo "検証環境を削除しました。" >> comments
+        sed -i -z 's/\n/\\n/g' comments
+
+    - name: Post comments
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        URL: ${{ github.event.pull_request.comments_url }}
+      run: |
+        curl -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -d "{\"body\": \"$(cat comments)\"}" \
+          ${URL}
+
+  NotifyFailure:
+    if: ${{ failure() }}
+    runs-on: ubuntu-20.04
+    timeout-minutes: 3
+    needs: DeleteEnv
+
+    steps:
+    - name: Create comments
+      run: |
+        echo "検証環境の削除に失敗しました。" >> comments
+        echo "#${{ github.run_number }}" >> comments
+        sed -i -z 's/\n/\\n/g' comments
+
+    - name: Post comments
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        URL: ${{ github.event.pull_request.comments_url }}
+      run: |
+        curl -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -d "{\"body\": \"$(cat comments)\"}" \
+          ${URL}

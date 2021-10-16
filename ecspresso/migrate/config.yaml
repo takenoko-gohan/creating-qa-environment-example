@@ -1,0 +1,10 @@
+region: ap-northeast-1
+cluster: qa-{{ must_env `ENV` }}-cluster
+service: qa-{{ must_env `ENV` }}-migrate
+service_definition: ecs-service-def.json
+task_definition: ecs-task-def.json
+timeout: 10m0s
+plugins:
+  - name: tfstate
+    config:
+      url: s3://{{ must_env `TFSTATE_BUCKET` }}/qa/{{ must_env `ENV` }}/terraform.tfstate

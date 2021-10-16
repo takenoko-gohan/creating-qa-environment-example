@@ -1,0 +1,144 @@
+name: Updating qa environment
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - main
+
+env:
+  ENV: pr${{ github.event.pull_request.number }}
+  TFSTATE_BUCKET: ${{ secrets.TFSTATE_BUCKET }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  BuildWeb:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push container image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      working-directory: ./web
+      run: |
+        docker build -t $ECR_REGISTRY/qa-$ENV-web:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/qa-$ENV-web:$IMAGE_TAG
+  
+  BuildWorker:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push container image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      working-directory: ./worker
+      run: |
+        docker build -t $ECR_REGISTRY/qa-$ENV-worker:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/qa-$ENV-worker:$IMAGE_TAG
+
+  BuildMigrate:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push container image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      working-directory: ./migrate
+      run: |
+        docker build -t $ECR_REGISTRY/qa-$ENV-migrate:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/qa-$ENV-migrate:$IMAGE_TAG
+ 
+  DbMigrate:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+    needs: [BuildWeb, BuildWorker, BuildMigrate]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Setup ecspresso
+      uses: kayac/ecspresso@v1
+      with:
+        version: v1.6.2
+
+    - name: Run DB Migration
+      working-directory: ./ecspresso/migrate
+      run: ecspresso run --config config.yaml
+
+  DeployApp:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 10
+    needs: DbMigrate
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+
+    - name: Setup ecspresso
+      uses: kayac/ecspresso@v1
+      with:
+        version: v1.6.2
+
+    - name: Deploy ECS service
+      working-directory: ./ecspresso/app
+      run: ecspresso deploy --config config.yaml --no-wait

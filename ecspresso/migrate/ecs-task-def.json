@@ -1,0 +1,55 @@
+{
+  "containerDefinitions": [
+    {
+      "cpu": 0,
+      "environment": [
+        {
+          "name": "DB_HOST",
+          "value": "{{ tfstate `aws_rds_cluster.cluster.endpoint` }}"
+        },
+        {
+          "name": "DB_DATABASE",
+          "value": "{{ tfstate `aws_rds_cluster.cluster.database_name` }}"
+        },
+        {
+          "name": "DB_USER_NAME",
+          "value": "{{ tfstate `mysql_user.migration.user` }}"
+        },
+        {
+          "name": "TZ",
+          "value": "Asia/Tokyo"
+        }
+      ],
+      "essential": true,
+      "image": "{{ tfstate `aws_ecr_repository.migrate.repository_url` }}:{{ must_env `IMAGE_TAG` }}",
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "{{ tfstate `aws_cloudwatch_log_group.ecs_task.name` }}",
+          "awslogs-region": "ap-northeast-1",
+          "awslogs-stream-prefix": "migrate-log-stream"
+        }
+      },
+      "mountPoints": [],
+      "name": "migrate",
+      "portMappings": [],
+      "secrets": [
+        {
+          "name": "DB_USER_PASS",
+          "valueFrom": "{{ tfstate `aws_ssm_parameter.migrate_db_user_pass.arn` }}"
+        }
+      ],
+      "volumesFrom": []
+    }
+  ],
+  "cpu": "256",
+  "executionRoleArn": "{{ tfstate `aws_iam_role.ecs_task_execution.arn` }}",
+  "family": "qa-{{ must_env `ENV` }}-migrate",
+  "memory": "512",
+  "networkMode": "awsvpc",
+  "placementConstraints": [],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "volumes": []
+}

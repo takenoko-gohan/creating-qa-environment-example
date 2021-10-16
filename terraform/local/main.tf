@@ -26,7 +26,7 @@ provider "aws" {
 }
 
 resource "aws_sqs_queue" "messages_queue" {
-  name                        = "message-queue.fifo"
+  name                        = "messages-queue.fifo"
   fifo_queue                  = true
   content_based_deduplication = true
 }

@@ -25,5 +25,6 @@ func main() {
 		panic(err)
 	}
 
+	// マイグレーションの実行
 	m.Steps(2)
 }

@@ -137,6 +137,27 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_01" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "ecs_task_execution_02" {
+  role = aws_iam_role.ecs_task_execution.id
+  name = "GetParameter"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = ""
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameters",
+        ]
+        Resource = [
+          aws_ssm_parameter.app_db_user_pass.arn,
+          aws_ssm_parameter.migrate_db_user_pass.arn,
+        ]
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role" "app" {
   name               = "${replace(title(local.prefix), "-", "")}App"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
@@ -219,7 +240,7 @@ resource "aws_ecs_task_definition" "app" {
 
   // ダミーのタスク定義
   container_definitions = jsonencode([{
-    name  = "nginx"
+    name  = "web"
     image = "nginx:latest"
     portMappings = [
       {
@@ -242,7 +263,7 @@ resource "aws_ecs_task_definition" "migrate" {
 
   // ダミーのタスク定義
   container_definitions = jsonencode([{
-    name  = "hello-world"
+    name  = "migrate"
     image = "hello-world:latest"
   }])
 }
@@ -264,7 +285,7 @@ resource "aws_ecs_service" "app" {
 
   load_balancer {
     target_group_arn = aws_lb_target_group.app_tg.arn
-    container_name   = "nginx"
+    container_name   = "web"
     container_port   = 80
   }
 
@@ -306,19 +327,19 @@ resource "aws_ecs_service" "migrate" {
 resource "random_password" "root_pass" {
   length           = 16
   special          = true
-  override_special = "_%@"
+  override_special = "_"
 }
 
 resource "random_password" "app_pass" {
   length           = 16
   special          = true
-  override_special = "_%@"
+  override_special = "_"
 }
 
 resource "random_password" "migration_pass" {
   length           = 16
   special          = true
-  override_special = "_%@"
+  override_special = "_"
 }
 
 resource "aws_db_subnet_group" "subnets" {
@@ -347,6 +368,10 @@ resource "aws_rds_cluster" "cluster" {
     min_capacity             = 1
     timeout_action           = "ForceApplyCapacityChange"
   }
+
+  depends_on = [
+    aws_cloudwatch_log_group.aurora_error,
+  ]
 }
 
 resource "mysql_user" "app" {
@@ -375,11 +400,14 @@ resource "mysql_grant" "migration" {
   user     = mysql_user.migration.user
   host     = mysql_user.migration.host
   database = aws_rds_cluster.cluster.database_name
+  privileges = [
+    "ALL",
+  ]
 }
 
 // SQS
 resource "aws_sqs_queue" "messages_queue" {
-  name                        = "${local.prefix}-message-queue.fifo"
+  name                        = "${local.prefix}-messages-queue.fifo"
   fifo_queue                  = true
   content_based_deduplication = true
 }
@@ -409,6 +437,6 @@ resource "aws_cloudwatch_log_group" "ecs_task" {
 }
 
 resource "aws_cloudwatch_log_group" "aurora_error" {
-  name              = "/aws/rds/cluster/${aws_rds_cluster.cluster.cluster_identifier}/error"
+  name              = "/aws/rds/cluster/qa-${terraform.workspace}-cluster/error"
   retention_in_days = 7
 }

@@ -37,6 +37,7 @@ type Message struct {
 }
 
 func init() {
+	// ローカル環境の場合はエンドポイントを localstack に設定
 	customResolver := aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
 		if os.Getenv("APP_ENV") == "local" {
 			return aws.Endpoint{
@@ -66,6 +67,7 @@ func main() {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
+	// メソッドのチェック
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		w.Write([]byte("405 Method Not Allowed"))
@@ -73,6 +75,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// db へ接続
 	dsn := os.Getenv("DB_USER_NAME") + ":" + os.Getenv("DB_USER_PASS") + "@tcp(" + os.Getenv("DB_HOST") + ":3306)/" + os.Getenv("DB_DATABASE") + "?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -83,6 +86,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// メッセージの一覧を取得
 	rows, err := db.Model(&Message{}).Select("name, message, created_at").Order("created_at").Rows()
 	if err != nil {
 		log.Printf("ERROR failed get Messages error: %s", err)
@@ -100,6 +104,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		messages = append(messages, message)
 	}
 
+	// html をレスポンス
 	tpl, err := template.ParseFiles("template/index.html")
 	if err != nil {
 		log.Printf("ERROR failed to parse the template: %v", err)
@@ -122,6 +127,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func write(w http.ResponseWriter, r *http.Request) {
+	// メソッドのチェック
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		w.Write([]byte("405 Status Method Not Allowed"))
@@ -129,6 +135,7 @@ func write(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// リクエストボディを取得
 	r.ParseForm()
 	form := r.PostForm
 
@@ -149,6 +156,7 @@ func write(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SQS にメッセージを送信
 	_, err = client.SendMessage(context.Background(), &sqs.SendMessageInput{
 		MessageBody:    aws.String(string(bytes)),
 		QueueUrl:       aws.String(os.Getenv("QUEUE_URL")),
@@ -164,5 +172,6 @@ func write(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("INFO succeeded in sending a message json: %s", string(bytes))
 
+	// index にリダイレクト
 	http.Redirect(w, r, "/", http.StatusFound)
 }

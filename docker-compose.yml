@@ -2,43 +2,37 @@ version: '3'
 
 services:
   web:
-    image: golang:1.15
+    build:
+      context: ./web
     ports:
       - 8080:80
     environment:
       AWS_ACCESS_KEY_ID: mock
       AWS_SECRET_ACCESS_KEY: mock
       APP_ENV: local
-      QUEUE_URL: http://localstack:4566/000000000000/message-queue.fifo
+      QUEUE_URL: http://localstack:4566/000000000000/messages-queue.fifo
       DB_USER_NAME: app
       DB_USER_PASS: password
       DB_HOST: db
       DB_DATABASE: bbs
       TZ: "Asia/Tokyo"
-    command: go run main.go
-    volumes:
-      - ./web/:/workspace:ro
-    working_dir: /workspace
     depends_on:
       - db
       - localstack
 
   worker:
-    image: golang:1.15
+    build:
+      context: ./worker
     environment:
       AWS_ACCESS_KEY_ID: mock
       AWS_SECRET_ACCESS_KEY: mock
       APP_ENV: local
-      QUEUE_URL: http://localstack:4566/000000000000/message-queue.fifo
+      QUEUE_URL: http://localstack:4566/000000000000/messages-queue.fifo
       DB_USER_NAME: app
       DB_USER_PASS: password
       DB_HOST: db
       DB_DATABASE: bbs
       TZ: "Asia/Tokyo"
-    command: go run main.go
-    volumes:
-      - ./worker/:/workspace:ro
-    working_dir: /workspace
     depends_on:
       - db
       - localstack
@@ -63,23 +57,19 @@ services:
       - 4566:4566
   
   migrate:
-    image: golang:1.15
+    build:
+      context: ./migrate
     environment:
       DB_HOST: db
       DB_DATABASE: bbs
       DB_USER_NAME: app
       DB_USER_PASS: password
       TZ: "Asia/Tokyo"
-    command: go run main.go
-    volumes:
-      - ./migrate/:/workspace:ro
-    working_dir: /workspace
     depends_on:
       - db
 
   terraform:
     build:
       context: ./terraform/local
-      dockerfile: Dockerfile
     depends_on:
       - localstack
