@@ -2,7 +2,7 @@
 
 AWS上にPRごとの検証環境を作成するための例
 
-![image](https://user-images.githubusercontent.com/59072363/137606681-aa21eda2-f403-4d71-bb46-829dcf1a76cb.png)
+![creating-qa-environment-example](https://user-images.githubusercontent.com/59072363/137611402-4ec3cd3c-ade5-4526-843c-bfbbf22f0600.png)
 
 ## 利用方法
 
